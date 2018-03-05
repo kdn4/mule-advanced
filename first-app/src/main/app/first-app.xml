@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<mule xmlns:json="http://www.mulesoft.org/schema/mule/json" 
+<mule
 xmlns="http://www.mulesoft.org/schema/mule/core" 
+xmlns:json="http://www.mulesoft.org/schema/mule/json" 
 xmlns:db="http://www.mulesoft.org/schema/mule/db" 
 xmlns:http="http://www.mulesoft.org/schema/mule/http" 
 xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
