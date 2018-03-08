@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
 	xmlns:metadata="http://www.mulesoft.org/schema/mule/metadata" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw"
 	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
 	xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking"
@@ -13,10 +13,15 @@ http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/cu
 http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
 http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
 http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
-http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
 
 	<http:listener-config name="HTTP_Listener_Configuration"
-		host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration" />
+		host="0.0.0.0" port="${http.port}" doc:name="HTTP Listener Configuration" />
+    <queued-asynchronous-processing-strategy name="highThroughPut-QueuedAsync-Strategy" maxThreads="80" minThreads="16" threadTTL="10000" doc:name="Queued Asynchronous Processing Strategy"/>
+    <ee:object-store-caching-strategy name="Caching_Strategy" keyGenerationExpression="#['auctionbidder']" doc:name="Caching Strategy">
+        <managed-store storeName="bids" maxEntries="1000" entryTTL="5000" expirationInterval="1000"/>
+    </ee:object-store-caching-strategy>
 
 	<flow name="AuctionService">
 		<http:listener config-ref="HTTP_Listener_Configuration"
@@ -56,21 +61,22 @@ payload splitBy "\n"]]></dw:set-payload>
 			path="process" doc:name="VM - out - process" />
 	</flow>
 
-	<flow name="processBids">
+	<flow name="processBids" processingStrategy="highThroughPut-QueuedAsync-Strategy">
 		<vm:inbound-endpoint exchange-pattern="one-way"
 			path="process" doc:name="VM - in - process" />
-		<component class="com.mulesoft.EnricherAuctionComponent"
-			doc:name="EnrichBids Java Component" />
+        <ee:cache cachingStrategy-ref="Caching_Strategy" doc:name="Cache">
+            <component class="com.mulesoft.EnricherAuctionComponent" doc:name="EnrichBids Java Component"/>
+        </ee:cache>
+        <logger message="#[mule.nodeId + ' Processed: ' + message.payload]" level="INFO" doc:name="Logger"/>
 		<collection-aggregator failOnTimeout="true"
 			doc:name="Collection Aggregator" />
 		<component class="com.mulesoft.HighestBidderAuctionComponent"
 			doc:name="Highest Bidder Java Component" />
 		<logger message="Highest Bidder: #[payload]" level="INFO"
 			doc:name="Log Payload" />
-		<logger message="At time: #[function:now]" level="INFO"
-			doc:name="Log TimeStamp" />
 		<vm:outbound-endpoint exchange-pattern="one-way"
 			path="auction.service" doc:name="VM out: auction.service" />
+        <logger message="At time: #[function:now]" level="INFO" doc:name="Log TimeStamp"/>
 	</flow>
 
 </mule>
